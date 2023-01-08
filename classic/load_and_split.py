@@ -31,16 +31,42 @@ def slide_over_one_subject(subject_X, subject_Y, minimal_length = 4):
 
     return subject_new_X, subject_new_Y
 
-def flatten_X(X, by:str):
+def flatten_X(X, by:str, remove_repeat:bool = True):
     """
     X, Y: 1-D list of 2D num array, each element is the data of one subject
         X[i].shape[0] === Y[i].shape[0] === number of waves
+    by: str, "wave" or "feature" 
+    remove_repeat: bool, whether to remove repeated time-invariant features
+                   `female`, `race`, `educ`, `cohort`
+                   They are the first 4 features of X[i][j]. 
+
+    [
+        [ # person 1
+            [# wave 1
+                feature 1, feature 2, ...
+            ],
+            [# wave 2
+                feature 1, feature 2, ...
+            ]
+            ... remaining waves
+        ], 
+        [ # person 2
+            [# wave 1
+                feature 1, feature 2, ...
+            ],
+            [# wave 2
+                feature 1, feature 2, ...
+            ]
+            ... remainig waves
+        ], 
+        ...remaining persons
+    ]
 
     Verification of the syntax: 
     X=numpy.array([[[1,2,3], [4,5,6]], 
-              [[7,8,9], [10,11,12]], 
-              [[13,14,15], [16,17,18]], 
-              [[19,20,21], [22,23,24]]])
+                   [[7,8,9], [10,11,12]], 
+                   [[13,14,15], [16,17,18]], 
+                   [[19,20,21], [22,23,24]]])
 
     einops.rearrange(X, 's w f -> s (f w)')
 
@@ -60,12 +86,31 @@ def flatten_X(X, by:str):
     # [num_subject, num_wave, num_feature] = X.shape
     # return X.reshape(-1, num_feature)
 
+    print (f'X.shape: {X.shape}') # made by Copilot
+
+    time_invariant_features = X[:, :, :4][:, 0] # n x 4 array, each row for each subject 
+
+    if remove_repeat:
+        time_variant_features = X[:, :, 4:] # n x w x (f-4) array, each row for each subject
+    else: 
+        time_variant_features = X # no removal of repeated features
+
     if by == 'wave':
-        new_X = einops.rearrange(X, 's w f -> s (f w)') # s: subject, w: wave, f: feature
+        new_X = einops.rearrange(time_variant_features, 's w f -> s (f w)') # s: subject, w: wave, f: feature
         # Concatenate based on wave
     elif by == 'feature':
-        new_X = einops.rearrange(X, 's w f -> s (w f)') # s: subject, w: wave, f: feature
+        new_X = einops.rearrange(time_variant_features, 's w f -> s (w f)') # s: subject, w: wave, f: feature
         # Concatenate based on feature 
+
+    print (f'time_variant_features.shape: {time_variant_features.shape}')
+    print (f'new_X.shape: {new_X.shape}')
+
+    if remove_repeat:
+        # stack new_X with time-invariant features
+        new_X = numpy.hstack((time_invariant_features, new_X))
+
+    print (f'new_X.shape: {new_X.shape}')
+
     return new_X
 
 def sampling_fixed_length(X, Y, minimal_length = 4):
@@ -102,7 +147,7 @@ def generate_labels(Y, target_index: int):
 
 # top level function for training data preparation 
 # need to rerun for each target index rangeing from 0 to 2 
-def prepare_training_data(X, Y, target_index: int, minimal_length=4):
+def prepare_training_data(X, Y, target_index: int, minimal_length):
     """
 
     X, Y: 1-D list of 2D num array, each element is the data of one subject
@@ -111,7 +156,7 @@ def prepare_training_data(X, Y, target_index: int, minimal_length=4):
     """
     new_X, new_Y = sampling_fixed_length(X, Y, minimal_length=minimal_length) 
     new_Y = generate_labels(new_Y, target_index=target_index)
-    new_X = flatten_X(new_X, by='feature')
+    new_X = flatten_X(new_X, by='feature', remove_repeat=True)
 
     # to cope with Scikit-learn's preference to Y 
     new_Y = new_Y.reshape((-1,))
