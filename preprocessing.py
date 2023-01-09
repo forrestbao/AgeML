@@ -20,8 +20,9 @@ import tqdm
 import sklearn, sklearn.preprocessing 
 
 # %%
-def remove_short_wave_subjects(df):
-    print ("Number of subjects before wave removal:", len(df['hhidpn'].unique()), "Number of rows:", len(df) )
+def remove_short_wave_subjects(df, verbose=True):
+    if verbose:
+        print ("Number of subjects before wave removal:", len(df['hhidpn'].unique()), "Number of rows:", len(df) )
 
     okay_row, okay_subject, seq_length = 0, 0,  []  
 
@@ -40,23 +41,28 @@ def remove_short_wave_subjects(df):
 
     df = df[df['hhidpn'].isin(qualified_subject)] 
 
-    print ("\nNumber of >2-wave subjets:", okay_subject, "Number of >2-wave rows:", okay_row, "average length (years) of a subject:",  sum(seq_length)/len(seq_length), "average age of subjects", df['age'].mean() )
+    if verbose:
+        print ("\nNumber of >2-wave subjets:", okay_subject, "Number of >2-wave rows:", okay_row, "average length (years) of a subject:",  sum(seq_length)/len(seq_length), "average age of subjects", df['age'].mean() )
 
     return df 
 
-def clean_columns_and_rows(df, keep_columns, target_columns):
+def clean_columns_and_rows(df, keep_columns, target_columns, verbose=True):
     # drop unecessary columns 
     df = df[keep_columns]
-    print ("Columns kept:", df.columns)
+    if verbose:
+        print ("Columns kept:", df.columns)
 
-    print (f"Number of rows before dropping: {len(df)}, and subjects: {len(df['hhidpn'].unique())}")
+        print (f"Number of rows before dropping: {len(df)}, and subjects: {len(df['hhidpn'].unique())}")
     # Drop rows where dead==1 or age<=0
     df = df[df['dead']==0]
-    print (f"After dropping rows where dead column is 0,  \n\t in remaining data, \
-            number of rows:  {len(df)}, and subjects: {len(df['hhidpn'].unique())} ")
+
+    if verbose:
+        print (f"After dropping rows where dead column is 0,  \n\t in remaining data, \
+                number of rows:  {len(df)}, and subjects: {len(df['hhidpn'].unique())} ")
     df = df[df['age']>0]
-    print (f"After dropping rows where age column is not a number: \n\t in remaining data, \
-            number of rows:  {len(df)}, and subjects: {len(df['hhidpn'].unique())} ")
+    if verbose: 
+        print (f"After dropping rows where age column is not a number: \n\t in remaining data, \
+                number of rows:  {len(df)}, and subjects: {len(df['hhidpn'].unique())} ")
 
     # Replace special strings with NaN 
     for special_string in [".s", ".m", ".r", ".d", ".x"]:
@@ -69,14 +75,16 @@ def clean_columns_and_rows(df, keep_columns, target_columns):
             df[column] = pandas.to_numeric(df[column])
 
     # Remove rows that has NaN in target columns 
-    print (f"Original number of rows: {len(df)}, and subjects: {len(df['hhidpn'].unique())}") 
+    if verbose:
+        print (f"Original number of rows: {len(df)}, and subjects: {len(df['hhidpn'].unique())}") 
     df=df.dropna(subset=target_columns)
-    print (f"After dropping rows that has NaN in target columns, \
-            \n\t in remaining data, \
-            number of rows:  {len(df)}, and subjects: {len(df['hhidpn'].unique())} ")
+    if verbose:
+        print (f"After dropping rows that has NaN in target columns, \
+                \n\t in remaining data, \
+                number of rows:  {len(df)}, and subjects: {len(df['hhidpn'].unique())} ")
 
     # Remove subjects with less than 2 waves
-    df = remove_short_wave_subjects(df)
+    df = remove_short_wave_subjects(df, verbose=verbose)
 
     # fill N/A
     df = df.fillna(0.5)
@@ -153,7 +161,7 @@ def pack_into_time_series(df, numerical_features, categorical_features, target_c
 
     return X, Y
 
-def main(use_feature_categories, csv_file="ML_social.csv", dump=False):
+def main(use_feature_categories, csv_file="ML_social.csv", dump=False, verbose=False):
 
     feature_categories  = {
         "socio-demographics": ["race", "educ", "cohort", "female", "age"], # "income", "assets"],
@@ -186,7 +194,7 @@ def main(use_feature_categories, csv_file="ML_social.csv", dump=False):
         keep_columns.append("age") # age is used to filter rows 
 
     df = pandas.read_csv(csv_file)
-    df = clean_columns_and_rows(df, keep_columns, target_columns)
+    df = clean_columns_and_rows(df, keep_columns, target_columns, verbose=verbose)
     X, Y  = pack_into_time_series(df, numerical_features, categorical_features, target_columns)
     print (X[0].shape, Y[0].shape)
     if dump:
